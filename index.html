@@ -1,324 +1,415 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ニコニコ サムネイルファインダー</title>
-<style>
-  :root {
-    --bg: #f6f6f4;
-    --ink: #1d1d1f;
-    --sub: #6b6b70;
-    --line: #dcdcd6;
-    --accent: #2457c5;
-    --ok: #1f7a3d;
-    --ng: #a33a3a;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    line-height: 1.6;
-  }
-  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
-  h1 { font-size: 1.3rem; margin: 0 0 16px; }
-  h2 { font-size: 1.05rem; margin: 32px 0 12px; }
-  .search { display: flex; gap: 8px; }
-  input[type=text] {
-    flex: 1; min-width: 0;
-    padding: 10px 12px; font-size: 1rem;
-    border: 1px solid var(--line); border-radius: 6px; background: #fff;
-  }
-  button {
-    padding: 10px 18px; font-size: 1rem; cursor: pointer;
-    border: 0; border-radius: 6px; background: var(--accent); color: #fff;
-  }
-  button:disabled { opacity: .5; cursor: default; }
-  :focus-visible { outline: 3px solid #8fb0f5; outline-offset: 2px; }
-  #status { margin: 12px 0 0; color: var(--sub); font-size: .9rem; min-height: 1.4em; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Niconico Thumbnail Finder</title>
+    <style>
+        :root {
+            --primary-blue: #00bcd4;
+            --bg-color: #f5f5f5;
+            --form-bg: #ffffff;
+            --border-color: #e0e0e0;
+            --text-main: #333333;
+            --text-sub: #777777;
+        }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-  .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .card .imgbox { background: #e9e9e4; min-height: 100px; display: flex; align-items: center; justify-content: center; }
-  .card img { display: block; width: 100%; height: auto; }
-  .card .meta { padding: 10px 12px; font-size: .82rem; word-break: break-all; }
-  .badge {
-    display: inline-block; padding: 0 8px; margin-right: 6px; border-radius: 10px;
-    font-size: .75rem; font-weight: 600; color: #fff; background: var(--sub);
-  }
-  .badge.q3 { background: var(--ok); }
-  .badge.q2 { background: var(--accent); }
-  .card a { color: var(--accent); }
-  .date { color: var(--sub); }
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
 
-  ul.ng { list-style: none; margin: 0; padding: 0; font-size: .8rem; color: var(--ng); }
-  ul.ng li { padding: 4px 0; border-bottom: 1px solid var(--line); word-break: break-all; }
-  .empty { color: var(--sub); font-size: .9rem; }
-</style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            background-color: var(--primary-blue);
+            color: #ffffff;
+            padding: 10px 0;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .search-area {
+            background-color: var(--form-bg);
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: var(--primary-blue);
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:disabled { opacity: .5; }
+
+        .divider {
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 20px 0;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--text-main);
+            margin: 20px 0 10px;
+        }
+
+        .result-item {
+            background-color: #ffffff;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+            box-sizing: border-box;
+        }
+
+        .result-item a {
+            color: #0066cc;
+            text-decoration: none;
+            font-size: 0.8rem;
+            display: block;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-all;
+        }
+
+        .result-item img {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+            display: block;
+        }
+
+        .no-archive-list {
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .no-archive-list a {
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 10px;
+            text-decoration: none;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-all;
+        }
+
+        .no-archive-list .warn {
+            color: #b23b3b;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            margin-bottom: 5px;
+            margin-right: 4px;
+            font-weight: bold;
+        }
+        .tag-archive { background-color: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+        .tag-direct  { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .tag-new     { background-color: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+
+        #loading { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin: 10px 0; display: none; }
+    </style>
 </head>
 <body>
-<main>
-  <h1>ニコニコ サムネイルファインダー</h1>
 
-  <div class="search">
-    <input id="q" type="text" inputmode="text" placeholder="動画のリンク / sm46525485 / 46525485" autocomplete="off">
-    <button id="go">検索</button>
-  </div>
-  <p id="status"></p>
+<header>Niconico Thumbnail Finder (V3)</header>
 
-  <h2>アーカイブあり <span id="okCount"></span></h2>
-  <div id="found" class="grid"><p class="empty">まだ検索していません</p></div>
+<div class="container">
+    <div class="search-area">
+        <input type="text" id="videoId" placeholder="URL or ID">
+        <button id="searchBtn" onclick="startSearch()">Search</button>
+    </div>
 
-  <h2>アーカイブなし <span id="ngCount"></span></h2>
-  <ul id="missing" class="ng"></ul>
-</main>
+    <div class="divider"></div>
+
+    <div id="loading">Searching...</div>
+
+    <div id="found-section" style="display:none;">
+        <div class="section-title">Images Found</div>
+        <div id="found-results"></div>
+    </div>
+
+    <div id="not-found-section" style="display:none;">
+        <div class="section-title">Archives Not Found (Links)</div>
+        <div class="no-archive-list" id="not-found-results"></div>
+    </div>
+</div>
 
 <script>
-const CDX = "https://web.archive.org/cdx/search/cdx";
+    // ---- 従来のパターン(画像の読み込み成否で判定。CORS不要) ----
+    const patterns = [
+        "http://tn-skr.smilevideo.jp/smile?i={id}",
+        "http://tn-skr.smilevideo.jp/smile?i={id}.L",
+        "http://tn-skr1.smilevideo.jp/smile?i={id}",
+        "http://tn-skr1.smilevideo.jp/smile?i={id}.L",
+        "http://tn-skr2.smilevideo.jp/smile?i={id}",
+        "http://tn-skr2.smilevideo.jp/smile?i={id}.L",
+        "http://tn-skr3.smilevideo.jp/smile?i={id}",
+        "http://tn-skr3.smilevideo.jp/smile?i={id}.L",
+        "http://tn-skr4.smilevideo.jp/smile?i={id}",
+        "http://tn-skr4.smilevideo.jp/smile?i={id}.L",
+        "https://tn.smilevideo.jp/smile?i={id}",
+        "https://nicovideo.cdn.nimg.jp/thumbnails/{id}/{id}",
+        "https://nicovideo.cdn.nimg.jp/thumbnails/{id}/{id}.L"
+    ];
 
-// 従来のパターン(ID を {id} で置換)
-function legacyPatterns(id) {
-  const hosts = ["tn-skr.smilevideo.jp", "tn-skr1.smilevideo.jp", "tn-skr2.smilevideo.jp",
-                 "tn-skr3.smilevideo.jp", "tn-skr4.smilevideo.jp"];
-  const list = [];
-  for (const h of hosts) {
-    list.push(`http://${h}/smile?i=${id}`);
-    list.push(`http://${h}/smile?i=${id}.L`);
-  }
-  list.push(`https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}.L`);
-  list.push(`https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}`);
-  list.push(`https://tn.smilevideo.jp/smile?i=${id}`);
-  return list;
-}
-
-// 新パターン: thumbnails/{id}/ 以下を前方一致で検索(末尾の数字が動画ごとに違うため)
-function newPatternPrefix(id) {
-  return `nicovideo.cdn.nimg.jp/thumbnails/${id}/`;
-}
-
-function quality(url) {
-  if (/\.L$/.test(url)) return 3;
-  if (/\.M$/.test(url)) return 2;
-  return 1;
-}
-const qLabel = { 3: "L(高画質)", 2: "M(中画質)", 1: "無印(低画質)" };
-
-function tsToDate(ts) {
-  return `${ts.slice(0,4)}/${ts.slice(4,6)}/${ts.slice(6,8)}`;
-}
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-// タイムアウト+リトライ付き fetch(429/5xx/通信失敗のとき再試行)
-async function fetchRetry(url, tries = 3) {
-  let lastErr;
-  for (let n = 0; n < tries; n++) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
-    try {
-      const res = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (res.status === 429 || res.status >= 500) {
-        lastErr = new Error(`HTTP ${res.status}`);
-        await sleep(700 * (n + 1));
-        continue;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res;
-    } catch (e) {
-      clearTimeout(timer);
-      lastErr = e.name === "AbortError" ? new Error("タイムアウト") : e;
-      if (/^HTTP 4/.test(lastErr.message)) throw lastErr; // 429以外の4xxは再試行しない
-      await sleep(700 * (n + 1));
-    }
-  }
-  throw lastErr;
-}
-
-async function cdx(params) {
-  const qs = new URLSearchParams({
-    output: "json",
-    fl: "timestamp,original,mimetype",
-    filter: "statuscode:200",
-    ...params
-  });
-  const res = await fetchRetry(`${CDX}?${qs}`);
-  const text = await res.text();
-  if (!text.trim()) return [];
-  const rows = JSON.parse(text);
-  return rows.slice(1).map(([timestamp, original, mimetype]) => ({ timestamp, original, mimetype }));
-}
-
-// CDXが使えないときの予備(完全一致のみ)。availability API
-async function availability(url) {
-  const res = await fetchRetry(`https://archive.org/wayback/available?url=${encodeURIComponent(url)}`);
-  const json = await res.json();
-  const c = json.archived_snapshots && json.archived_snapshots.closest;
-  if (c && c.available && String(c.status) === "200") {
-    return [{ timestamp: c.timestamp, original: url, mimetype: "" }];
-  }
-  return [];
-}
-
-// 各 original URL につき最新のキャプチャだけ残す
-function latestPerUrl(rows) {
-  const map = new Map();
-  for (const r of rows) {
-    const cur = map.get(r.original);
-    if (!cur || r.timestamp > cur.timestamp) map.set(r.original, r);
-  }
-  return [...map.values()];
-}
-
-async function pool(tasks, limit) {
-  const results = new Array(tasks.length);
-  let i = 0;
-  async function worker() {
-    while (i < tasks.length) {
-      const idx = i++;
-      results[idx] = await tasks[idx]();
-    }
-  }
-  await Promise.all(Array.from({ length: limit }, worker));
-  return results;
-}
-
-// リンク・smコード・数字のどれでもIDを取り出す
-// 例: https://www.nicovideo.jp/watch/sm46525485 / nico.ms/sm46525485 /
-//     ext.nicovideo.jp/thumb/sm46525485 / sm46525485 / 46525485 /
-//     .../thumbnails/46525485/46525485.62851576.L / ...smile?i=46525485.L
-function extractId(input) {
-  const s = input.trim();
-  const patterns = [
-    /(?:sm|nm|so)(\d+)/i,
-    /[?&]i=(\d+)/,
-    /thumbnails\/(\d+)/,
-    /(\d+)/
-  ];
-  for (const p of patterns) {
-    const m = s.match(p);
-    if (m) return m[1];
-  }
-  return null;
-}
-
-async function search() {
-  const id = extractId(document.getElementById("q").value);
-  const status = document.getElementById("status");
-  const foundEl = document.getElementById("found");
-  const missingEl = document.getElementById("missing");
-  const btn = document.getElementById("go");
-
-  if (!id) {
-    status.textContent = "sm番号または数字を入力してください。";
-    return;
-  }
-
-  btn.disabled = true;
-  foundEl.innerHTML = "";
-  missingEl.innerHTML = "";
-  document.getElementById("okCount").textContent = "";
-  document.getElementById("ngCount").textContent = "";
-
-  const legacy = legacyPatterns(id);
-  const tasks = [];
-
-  // 従来パターン(完全一致)
-  for (const url of legacy) {
-    tasks.push(async () => {
-      try {
-        const rows = await cdx({ url });
-        return { kind: "exact", url, rows };
-      } catch (e1) {
-        try {
-          const rows = await availability(url);
-          return { kind: "exact", url, rows };
-        } catch (e2) {
-          return { kind: "exact", url, rows: [], error: e1.message };
+    // リンク・smコード・数字のどれからでもIDを取り出す
+    function extractId(input) {
+        const s = input.trim();
+        const regs = [/(?:sm|nm|so)(\d+)/i, /[?&]i=(\d+)/, /thumbnails\/(\d+)/, /(\d+)/];
+        for (const r of regs) {
+            const m = s.match(r);
+            if (m) return m[1];
         }
-      }
+        return null;
+    }
+
+    function quality(url) {
+        if (/\.L$/.test(url)) return 3;
+        if (/\.M$/.test(url)) return 2;
+        return 1;
+    }
+    const qName = { 3: "L", 2: "M", 1: "S" };
+
+    async function startSearch() {
+        const id = extractId(document.getElementById('videoId').value);
+        if (!id) return alert("ID番号が見つかりませんでした");
+
+        // 利用ログ(従来どおり)
+        const formUrl = "https://docs.google.com/forms/u/0/d/e/1FAIpQLScYhBafILS8FUVbT2p_nkGZMGNvtbwdMlOTQCG7CNfvK3sKPQ/formResponse";
+        const params = new URLSearchParams();
+        params.append("entry.625261516", id);
+        fetch(formUrl, { method: 'POST', mode: 'no-cors', body: params }).catch(() => {});
+
+        const foundContainer = document.getElementById('found-results');
+        const notFoundContainer = document.getElementById('not-found-results');
+        const loading = document.getElementById('loading');
+        const btn = document.getElementById('searchBtn');
+
+        foundContainer.innerHTML = '';
+        notFoundContainer.innerHTML = '';
+        document.getElementById('found-section').style.display = 'none';
+        document.getElementById('not-found-section').style.display = 'block';
+        loading.style.display = 'block';
+        btn.disabled = true;
+
+        const totalTargets = patterns.length + 1; // +1 は新パターン
+        let processed = 0;
+        const finish = () => {
+            processed++;
+            if (processed === totalTargets) {
+                loading.style.display = 'none';
+                btn.disabled = false;
+            }
+        };
+
+        // 従来パターン: 全部並列で確認
+        patterns.forEach(pattern => {
+            const rawUrl = pattern.replace(/{id}/g, id);
+            const wbUrl = `https://web.archive.org/web/${rawUrl}`;
+            const wbImgUrl = `https://web.archive.org/web/0im_/${rawUrl}`;
+
+            checkImage(wbImgUrl, (success) => {
+                if (success) {
+                    addFoundItem(wbUrl, wbImgUrl, "archive", "");
+                } else {
+                    addNotFoundLink(wbUrl);
+                }
+
+                if (rawUrl.includes("cdn.nimg.jp")) {
+                    checkImage(rawUrl, (directSuccess) => {
+                        if (directSuccess) addFoundItem(rawUrl, rawUrl, "direct", "");
+                    });
+                }
+                finish();
+            });
+        });
+
+        // 新パターン: thumbnails/{id}/ 以下を前方一致で検索
+        searchNewPattern(id).finally(finish);
+    }
+
+    // ---- 新パターン ----
+    async function searchNewPattern(id) {
+        const manualUrl = `https://web.archive.org/web/*/https://nicovideo.cdn.nimg.jp/thumbnails/${id}*`;
+        let rows;
+        try {
+            rows = await fetchCdxRows(id);
+        } catch (e) {
+            addWarning(`新パターンの自動検索に失敗しました(${e.message})。下のリンクを直接開いて確認してください。`);
+            addNotFoundLink(manualUrl);
+            return;
+        }
+
+        // 既存パターンと同じURLは除外し、URLごとに最新のキャプチャだけ残す
+        const known = new Set([
+            `https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}`,
+            `https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}.L`
+        ]);
+        const latest = new Map();
+        for (const r of rows) {
+            if (known.has(r.original)) continue;
+            const cur = latest.get(r.original);
+            if (!cur || r.timestamp > cur.timestamp) latest.set(r.original, r);
+        }
+        const list = [...latest.values()].sort((a, b) =>
+            quality(b.original) - quality(a.original) || b.timestamp.localeCompare(a.timestamp));
+
+        if (list.length === 0) {
+            addNotFoundLink(manualUrl);
+            return;
+        }
+
+        await Promise.all(list.map(r => new Promise(resolve => {
+            const wbUrl = `https://web.archive.org/web/${r.timestamp}/${r.original}`;
+            const wbImg = `https://web.archive.org/web/${r.timestamp}im_/${r.original}`;
+            checkImage(wbImg, ok => {
+                if (ok) addFoundItem(wbUrl, wbImg, "new", qName[quality(r.original)]);
+                else addNotFoundLink(wbUrl);
+                resolve();
+            });
+        })));
+    }
+
+    // CDX APIを直接 → だめならCORSプロキシ経由で取得
+    async function fetchCdxRows(id) {
+        const cdxUrl = "https://web.archive.org/cdx/search/cdx?" + new URLSearchParams({
+            url: `nicovideo.cdn.nimg.jp/thumbnails/${id}/`,
+            matchType: "prefix",
+            output: "json",
+            fl: "timestamp,original,mimetype",
+            filter: "statuscode:200",
+            limit: "500"
+        });
+        const routes = [
+            cdxUrl,
+            "https://corsproxy.io/?url=" + encodeURIComponent(cdxUrl),
+            "https://api.allorigins.win/raw?url=" + encodeURIComponent(cdxUrl)
+        ];
+        const errors = [];
+        for (const u of routes) {
+            try {
+                const text = await fetchText(u, 15000);
+                if (!text.trim()) return [];
+                const json = JSON.parse(text);
+                return json.slice(1).map(([timestamp, original, mimetype]) => ({ timestamp, original, mimetype }));
+            } catch (e) {
+                errors.push(e.message);
+            }
+        }
+        throw new Error(errors.join(" / "));
+    }
+
+    async function fetchText(url, timeoutMs) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+        try {
+            const res = await fetch(url, { signal: ctrl.signal });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.text();
+        } catch (e) {
+            throw new Error(e.name === "AbortError" ? "timeout" : e.message);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    // ---- 共通 ----
+    function checkImage(url, callback) {
+        const img = new Image();
+        img.onload = () => callback(true);
+        img.onerror = () => callback(false);
+        img.src = url;
+    }
+
+    function addFoundItem(link, imgSrc, type, q) {
+        document.getElementById('found-section').style.display = 'block';
+        const div = document.createElement('div');
+        div.className = 'result-item';
+        const tag = {
+            archive: ['tag-archive', 'Wayback Archive'],
+            direct:  ['tag-direct',  'Direct Live'],
+            new:     ['tag-new',     'Wayback Archive (New)']
+        }[type];
+        div.innerHTML = `
+            <span class="tag ${tag[0]}">${tag[1]}</span>${q ? `<span class="tag tag-archive">${q}</span>` : ''}
+            <a href="${link}" target="_blank">${link}</a>
+            <img src="${imgSrc}" alt="thumbnail">
+        `;
+        document.getElementById('found-results').appendChild(div);
+    }
+
+    function addNotFoundLink(link) {
+        const a = document.createElement('a');
+        a.href = link;
+        a.target = "_blank";
+        a.textContent = "→ " + link;
+        document.getElementById('not-found-results').appendChild(a);
+    }
+
+    function addWarning(text) {
+        const p = document.createElement('div');
+        p.className = 'warn';
+        p.textContent = text;
+        document.getElementById('not-found-results').appendChild(p);
+    }
+
+    document.getElementById('videoId').addEventListener('keydown', e => {
+        if (e.key === 'Enter') startSearch();
     });
-  }
-  // 新パターン(前方一致)
-  const prefix = newPatternPrefix(id);
-  tasks.push(async () => {
-    try {
-      const rows = await cdx({ url: prefix, matchType: "prefix", limit: "500" });
-      return { kind: "prefix", url: prefix + "*", rows };
-    } catch (e) {
-      return { kind: "prefix", url: prefix + "*", rows: [], error: e.message };
-    }
-  });
-
-  let done = 0;
-  status.textContent = `検索中… 0 / ${tasks.length}`;
-  const wrapped = tasks.map(t => async () => {
-    const r = await t();
-    done++;
-    status.textContent = `検索中… ${done} / ${tasks.length}`;
-    return r;
-  });
-
-  const results = await pool(wrapped, 7);
-
-  const found = new Map(); // original -> row
-  const missing = [];
-  let errors = 0;
-
-  for (const r of results) {
-    if (r.error) errors++;
-    const rows = latestPerUrl(r.rows.filter(x => !x.mimetype || x.mimetype.startsWith("image/")));
-    if (rows.length === 0) {
-      missing.push(r.url + (r.error ? `(取得エラー: ${r.error})` : ""));
-    } else {
-      for (const row of rows) found.set(row.original, row);
-    }
-  }
-
-  // 高画質順に並べる
-  const items = [...found.values()].sort((a, b) =>
-    quality(b.original) - quality(a.original) || b.timestamp.localeCompare(a.timestamp));
-
-  if (items.length === 0) {
-    foundEl.innerHTML = '<p class="empty">アーカイブされた画像は見つかりませんでした。</p>';
-  }
-  for (const it of items) {
-    const q = quality(it.original);
-    const raw = `https://web.archive.org/web/${it.timestamp}im_/${it.original}`;
-    const page = `https://web.archive.org/web/${it.timestamp}/${it.original}`;
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <div class="imgbox"><a href="${raw}" target="_blank" rel="noopener"><img loading="lazy" alt=""></a></div>
-      <div class="meta">
-        <span class="badge q${q}">${qLabel[q]}</span><span class="date">${tsToDate(it.timestamp)}</span><br>
-        <a href="${page}" target="_blank" rel="noopener"></a>
-      </div>`;
-    card.querySelector("img").src = raw;
-    const a = card.querySelector(".meta a");
-    a.textContent = it.original;
-    foundEl.appendChild(card);
-  }
-
-  for (const m of missing) {
-    const li = document.createElement("li");
-    li.textContent = m;
-    missingEl.appendChild(li);
-  }
-
-  document.getElementById("okCount").textContent = `(${items.length}件)`;
-  document.getElementById("ngCount").textContent = `(${missing.length}件)`;
-  const firstErr = results.find(r => r.error);
-  status.textContent = errors
-    ? `ID ${id}:完了(${errors}件の取得エラー: ${firstErr.error})。全件エラーの場合は、ファイルアプリのプレビューではなくSafariなどのブラウザで開くか、Webに置いて開いてください。`
-    : `ID ${id}:完了`;
-  btn.disabled = false;
-}
-
-document.getElementById("go").addEventListener("click", search);
-document.getElementById("q").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
 </script>
+
 </body>
 </html>
