@@ -188,6 +188,11 @@
 </div>
 
 <script>
+    // ---- 設定 ----
+    // Cloudflare Workers の中継URLをここに貼る(例: "https://nico-cdx.yourname.workers.dev")
+    // 空のままなら、直接アクセス→公開プロキシの順で試す
+    const WORKER_URL = "https://withered-field-b782.vocaloidlost.workers.dev";
+
     // ---- 従来のパターン(画像の読み込み成否で判定。CORS不要) ----
     const patterns = [
         "http://tn-skr.smilevideo.jp/smile?i={id}",
@@ -338,6 +343,7 @@
             "https://corsproxy.io/?url=" + encodeURIComponent(cdxUrl),
             "https://api.allorigins.win/raw?url=" + encodeURIComponent(cdxUrl)
         ];
+        if (WORKER_URL) routes.unshift(`${WORKER_URL.replace(/\/$/, "")}/?id=${id}`);
         const errors = [];
         for (const u of routes) {
             try {
