@@ -80,17 +80,62 @@
         }
         button:disabled { opacity: .5; }
 
+        .hint { font-size: 0.75rem; color: var(--text-sub); margin: 0; }
+
         .divider {
             height: 1px;
             background-color: var(--border-color);
             margin: 20px 0;
         }
 
-        .section-title {
+        #loading { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin: 10px 0; display: none; }
+
+        /* VocaDB情報 */
+        .vocadb-info {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+        .vocadb-info a { color: #0066cc; text-decoration: none; }
+        .vocadb-info .sub { color: var(--text-sub); font-size: 0.75rem; margin-top: 4px; }
+        .vocadb-info .err { color: #b23b3b; }
+
+        /* 動画ごとのグループ */
+        .group {
+            background: #fafafa;
+            border: 2px solid var(--primary-blue);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 24px;
+            box-sizing: border-box;
+        }
+        .group-head {
+            font-weight: bold;
             font-size: 1rem;
+            color: var(--text-main);
+            word-break: break-all;
+        }
+        .group-head .num {
+            display: inline-block;
+            background: var(--primary-blue);
+            color: #fff;
+            border-radius: 3px;
+            padding: 1px 8px;
+            margin-right: 6px;
+            font-size: 0.8rem;
+        }
+        .group-head a { color: #0066cc; text-decoration: none; }
+        .group-sub { font-size: 0.78rem; color: var(--text-sub); margin: 4px 0 6px; word-break: break-all; }
+
+        .section-title {
+            font-size: 0.95rem;
             font-weight: bold;
             color: var(--text-main);
-            margin: 20px 0 10px;
+            margin: 14px 0 8px;
         }
 
         .result-item {
@@ -101,7 +146,6 @@
             border: 1px solid var(--border-color);
             box-sizing: border-box;
         }
-
         .result-item a {
             color: #0066cc;
             text-decoration: none;
@@ -112,7 +156,6 @@
             overflow-wrap: break-word;
             word-break: break-all;
         }
-
         .result-item img {
             width: 100%;
             height: auto;
@@ -120,17 +163,26 @@
             display: block;
         }
 
-        .no-archive-list {
+        .none-note { font-size: 0.8rem; color: var(--text-sub); }
+
+        details.nf {
             background-color: #ffffff;
-            padding: 15px;
-            border-radius: 4px;
             border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-top: 12px;
             font-size: 0.75rem;
             box-sizing: border-box;
             overflow: hidden;
         }
-
-        .no-archive-list a {
+        details.nf summary {
+            padding: 10px 12px;
+            cursor: pointer;
+            color: var(--text-main);
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+        details.nf .nf-body { padding: 0 12px 4px; }
+        details.nf a {
             color: var(--text-sub);
             display: block;
             margin-bottom: 10px;
@@ -139,12 +191,7 @@
             overflow-wrap: break-word;
             word-break: break-all;
         }
-
-        .no-archive-list .warn {
-            color: #b23b3b;
-            margin-bottom: 10px;
-            word-break: break-all;
-        }
+        details.nf .warn { color: #b23b3b; margin-bottom: 10px; word-break: break-all; }
 
         .tag {
             display: inline-block;
@@ -158,8 +205,8 @@
         .tag-archive { background-color: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
         .tag-direct  { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
         .tag-new     { background-color: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-
-        #loading { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin: 10px 0; display: none; }
+        .tag-orig    { background-color: #f3e5f5; color: #6a1b9a; border: 1px solid #ce93d8; }
+        .tag-del     { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
     </style>
 </head>
 <body>
@@ -175,22 +222,13 @@
     <div class="divider"></div>
 
     <div id="loading">Searching...</div>
-
-    <div id="found-section" style="display:none;">
-        <div class="section-title">Images Found</div>
-        <div id="found-results"></div>
-    </div>
-
-    <div id="not-found-section" style="display:none;">
-        <div class="section-title">Archives Not Found (Links)</div>
-        <div class="no-archive-list" id="not-found-results"></div>
-    </div>
+    <div id="vocadb-info" style="display:none;"></div>
+    <div id="results"></div>
 </div>
 
 <script>
     // ---- 設定 ----
-    // Cloudflare Workers の中継URLをここに貼る(例: "https://nico-cdx.yourname.workers.dev")
-    // 空のままなら、直接アクセス→公開プロキシの順で試す
+    // Cloudflare Workers の中継URL(新パターンのCDX検索用)
     const WORKER_URL = "https://withered-field-b782.vocaloidlost.workers.dev";
 
     // ---- 従来のパターン(画像の読み込み成否で判定。CORS不要) ----
@@ -210,7 +248,12 @@
         "https://nicovideo.cdn.nimg.jp/thumbnails/{id}/{id}.L"
     ];
 
-    // リンク・smコード・数字のどれからでもIDを取り出す
+    // ---- 入力の解釈 ----
+    function extractVocadbId(input) {
+        const m = input.match(/vocadb\.net\/(?:S|Song|Songs\/Details)\/(\d+)/i);
+        return m ? m[1] : null;
+    }
+
     function extractId(input) {
         const s = input.trim();
         const regs = [/(?:sm|nm|so)(\d+)/i, /[?&]i=(\d+)/, /thumbnails\/(\d+)/, /(\d+)/];
@@ -228,77 +271,268 @@
     }
     const qName = { 3: "L", 2: "M", 1: "S" };
 
+    // ---- VocaDB ----
+    // ニコニコ動画の「オリジナル」PVだけを返す(YouTube等・転載(Reprint)・Otherは除外)
+    async function fetchVocadbNicoPVs(songId) {
+        const res = await fetch(`https://vocadb.net/api/songs/${songId}?fields=PVs&lang=Default`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const song = await res.json();
+        const pvs = song.pvs || [];
+
+        const seen = new Set();
+        const originals = [];
+        let excluded = 0;
+        for (const pv of pvs) {
+            if (pv.service !== "NicoNicoDouga") continue;
+            if (pv.pvType !== "Original") { excluded++; continue; }
+            const m = String(pv.pvId || "").match(/\d+/);
+            if (!m || seen.has(m[0])) continue;
+            seen.add(m[0]);
+            originals.push({
+                id: m[0],
+                code: pv.pvId,
+                name: pv.name || "",
+                author: pv.author || "",
+                disabled: !!pv.disabled
+            });
+        }
+        return { songName: song.name || `#${songId}`, originals, excluded };
+    }
+
+    // ---- メイン ----
     async function startSearch() {
-        const id = extractId(document.getElementById('videoId').value);
-        if (!id) return alert("ID番号が見つかりませんでした");
-
-        // 利用ログ(従来どおり)
-        const formUrl = "https://docs.google.com/forms/u/0/d/e/1FAIpQLScYhBafILS8FUVbT2p_nkGZMGNvtbwdMlOTQCG7CNfvK3sKPQ/formResponse";
-        const params = new URLSearchParams();
-        params.append("entry.625261516", id);
-        fetch(formUrl, { method: 'POST', mode: 'no-cors', body: params }).catch(() => {});
-
-        const foundContainer = document.getElementById('found-results');
-        const notFoundContainer = document.getElementById('not-found-results');
-        const loading = document.getElementById('loading');
+        const input = document.getElementById('videoId').value;
         const btn = document.getElementById('searchBtn');
+        const loading = document.getElementById('loading');
+        const info = document.getElementById('vocadb-info');
+        const results = document.getElementById('results');
 
-        foundContainer.innerHTML = '';
-        notFoundContainer.innerHTML = '';
-        document.getElementById('found-section').style.display = 'none';
-        document.getElementById('not-found-section').style.display = 'block';
+        const vocadbId = extractVocadbId(input);
+        const directId = vocadbId ? null : extractId(input);
+        if (!vocadbId && !directId) return alert("ID番号が見つかりませんでした");
+
+        results.innerHTML = '';
+        info.innerHTML = '';
+        info.style.display = 'none';
         loading.style.display = 'block';
         btn.disabled = true;
 
-        const totalTargets = patterns.length + 1; // +1 は新パターン
-        let processed = 0;
-        const finish = () => {
-            processed++;
-            if (processed === totalTargets) {
+        let targets = [];
+
+        if (vocadbId) {
+            loading.textContent = "Loading VocaDB...";
+            try {
+                const { songName, originals, excluded } = await fetchVocadbNicoPVs(vocadbId);
+                info.style.display = 'block';
+                const a = document.createElement('a');
+                a.href = `https://vocadb.net/S/${vocadbId}`;
+                a.target = "_blank";
+                a.textContent = songName;
+                const title = document.createElement('div');
+                title.append("VocaDB: ", a);
+                const sub = document.createElement('div');
+                sub.className = 'sub';
+                sub.textContent = `Original: ${originals.length}` + (excluded ? ` / Excluded: ${excluded}` : '');
+                info.append(title, sub);
+                targets = originals;
+            } catch (e) {
+                info.style.display = 'block';
+                const d = document.createElement('div');
+                d.className = 'err';
+                d.textContent = `VocaDB error (${e.message})`;
+                info.append(d);
+            }
+            if (targets.length === 0) {
+                if (info.style.display === 'block' && !info.querySelector('.err')) {
+                    const d = document.createElement('div');
+                    d.className = 'err';
+                    d.textContent = "No Niconico original PV found.";
+                    info.append(d);
+                }
                 loading.style.display = 'none';
+                loading.textContent = "Searching...";
                 btn.disabled = false;
+                return;
+            }
+        } else {
+            targets = [{ id: directId, code: `ID ${directId}`, name: "", author: "", disabled: false }];
+        }
+
+        loading.textContent = "Searching...";
+
+        // 動画ごとにグループを作って並列に検索(結果は混ざらない)
+        const total = targets.length;
+        const jobs = targets.map((t, i) => {
+            const g = createGroup(t, i + 1, total, !!vocadbId);
+            results.appendChild(g.el);
+            return searchOne(t.id, g);
+        });
+        await Promise.all(jobs);
+
+        loading.style.display = 'none';
+        btn.disabled = false;
+    }
+
+    // ---- 動画ごとのグループUI ----
+    function createGroup(target, index, total, showNumber) {
+        const el = document.createElement('div');
+        el.className = 'group';
+
+        const head = document.createElement('div');
+        head.className = 'group-head';
+        if (showNumber) {
+            const num = document.createElement('span');
+            num.className = 'num';
+            num.textContent = `${index} / ${total}`;
+            head.appendChild(num);
+        }
+        const link = document.createElement('a');
+        link.href = `https://www.nicovideo.jp/watch/sm${target.id}`;
+        link.target = "_blank";
+        link.textContent = target.code && /^[a-z]{2}\d+$/i.test(target.code) ? target.code : `sm${target.id}`;
+        head.appendChild(link);
+        if (target.disabled) {
+            const t = document.createElement('span');
+            t.className = 'tag tag-del';
+            t.style.marginLeft = '6px';
+            t.textContent = 'Disabled';
+            head.appendChild(t);
+        }
+        el.appendChild(head);
+
+        if (target.name || target.author) {
+            const sub = document.createElement('div');
+            sub.className = 'group-sub';
+            sub.textContent = [target.name, target.author].filter(Boolean).join(' / ');
+            el.appendChild(sub);
+        }
+
+        const foundTitle = document.createElement('div');
+        foundTitle.className = 'section-title';
+        foundTitle.textContent = 'Images Found';
+        const foundBox = document.createElement('div');
+        el.append(foundTitle, foundBox);
+
+        const nf = document.createElement('details');
+        nf.className = 'nf';
+        nf.style.display = 'none';
+        const summary = document.createElement('summary');
+        const nfBody = document.createElement('div');
+        nfBody.className = 'nf-body';
+        nf.append(summary, nfBody);
+        el.appendChild(nf);
+
+        let foundCount = 0, nfCount = 0, finished = false;
+        const updateCounts = () => {
+            foundTitle.textContent = `Images Found (${foundCount})`;
+            summary.textContent = `Archives Not Found (${nfCount})`;
+            nf.style.display = nfCount > 0 ? 'block' : 'none';
+        };
+        updateCounts();
+
+        return {
+            el,
+            addFound(link, imgSrc, type, q) {
+                foundCount++;
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                const tag = {
+                    archive: ['tag-archive', 'Wayback Archive'],
+                    direct:  ['tag-direct',  'Direct Live'],
+                    new:     ['tag-new',     'Wayback Archive (New)']
+                }[type];
+                const t1 = document.createElement('span');
+                t1.className = `tag ${tag[0]}`;
+                t1.textContent = tag[1];
+                div.appendChild(t1);
+                if (q) {
+                    const t2 = document.createElement('span');
+                    t2.className = 'tag tag-archive';
+                    t2.textContent = q;
+                    div.appendChild(t2);
+                }
+                const a = document.createElement('a');
+                a.href = link;
+                a.target = "_blank";
+                a.textContent = link;
+                const img = document.createElement('img');
+                img.src = imgSrc;
+                img.alt = "thumbnail";
+                div.append(a, img);
+                foundBox.appendChild(div);
+                updateCounts();
+            },
+            addNotFound(link) {
+                nfCount++;
+                const a = document.createElement('a');
+                a.href = link;
+                a.target = "_blank";
+                a.textContent = "→ " + link;
+                nfBody.appendChild(a);
+                updateCounts();
+            },
+            addWarning(text) {
+                const d = document.createElement('div');
+                d.className = 'warn';
+                d.textContent = text;
+                nfBody.appendChild(d);
+                nfCount++;
+                updateCounts();
+            },
+            finish() {
+                finished = true;
+                if (foundCount === 0) {
+                    const p = document.createElement('div');
+                    p.className = 'none-note';
+                    p.textContent = 'No images found';
+                    foundBox.appendChild(p);
+                }
             }
         };
+    }
 
-        // 従来パターン: 全部並列で確認
-        patterns.forEach(pattern => {
+    // ---- 1動画ぶんの検索 ----
+    async function searchOne(id, g) {
+        logUsage(id);
+
+        const tasks = patterns.map(async pattern => {
             const rawUrl = pattern.replace(/{id}/g, id);
             const wbUrl = `https://web.archive.org/web/${rawUrl}`;
             const wbImgUrl = `https://web.archive.org/web/0im_/${rawUrl}`;
 
-            checkImage(wbImgUrl, (success) => {
-                if (success) {
-                    addFoundItem(wbUrl, wbImgUrl, "archive", "");
-                } else {
-                    addNotFoundLink(wbUrl);
-                }
+            const ok = await checkImage(wbImgUrl);
+            if (ok) g.addFound(wbUrl, wbImgUrl, "archive", "");
+            else g.addNotFound(wbUrl);
 
-                if (rawUrl.includes("cdn.nimg.jp")) {
-                    checkImage(rawUrl, (directSuccess) => {
-                        if (directSuccess) addFoundItem(rawUrl, rawUrl, "direct", "");
-                    });
-                }
-                finish();
-            });
+            if (rawUrl.includes("cdn.nimg.jp")) {
+                if (await checkImage(rawUrl)) g.addFound(rawUrl, rawUrl, "direct", "");
+            }
         });
+        tasks.push(searchNewPattern(id, g));
 
-        // 新パターン: thumbnails/{id}/ 以下を前方一致で検索
-        searchNewPattern(id).finally(finish);
+        await Promise.all(tasks);
+        g.finish();
+    }
+
+    function logUsage(id) {
+        const formUrl = "https://docs.google.com/forms/u/0/d/e/1FAIpQLScYhBafILS8FUVbT2p_nkGZMGNvtbwdMlOTQCG7CNfvK3sKPQ/formResponse";
+        const params = new URLSearchParams();
+        params.append("entry.625261516", id);
+        fetch(formUrl, { method: 'POST', mode: 'no-cors', body: params }).catch(() => {});
     }
 
     // ---- 新パターン ----
-    async function searchNewPattern(id) {
+    async function searchNewPattern(id, g) {
         const manualUrl = `https://web.archive.org/web/*/https://nicovideo.cdn.nimg.jp/thumbnails/${id}*`;
         let rows;
         try {
             rows = await fetchCdxRows(id);
         } catch (e) {
-            addWarning(`新パターンの自動検索に失敗しました(${e.message})。下のリンクを直接開いて確認してください。`);
-            addNotFoundLink(manualUrl);
+            g.addWarning(`New pattern search failed (${e.message})`);
+            g.addNotFound(manualUrl);
             return;
         }
 
-        // 既存パターンと同じURLは除外し、URLごとに最新のキャプチャだけ残す
         const known = new Set([
             `https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}`,
             `https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}.L`
@@ -313,22 +547,18 @@
             quality(b.original) - quality(a.original) || b.timestamp.localeCompare(a.timestamp));
 
         if (list.length === 0) {
-            addNotFoundLink(manualUrl);
+            g.addNotFound(manualUrl);
             return;
         }
 
-        await Promise.all(list.map(r => new Promise(resolve => {
+        await Promise.all(list.map(async r => {
             const wbUrl = `https://web.archive.org/web/${r.timestamp}/${r.original}`;
             const wbImg = `https://web.archive.org/web/${r.timestamp}im_/${r.original}`;
-            checkImage(wbImg, ok => {
-                if (ok) addFoundItem(wbUrl, wbImg, "new", qName[quality(r.original)]);
-                else addNotFoundLink(wbUrl);
-                resolve();
-            });
-        })));
+            if (await checkImage(wbImg)) g.addFound(wbUrl, wbImg, "new", qName[quality(r.original)]);
+            else g.addNotFound(wbUrl);
+        }));
     }
 
-    // CDX APIを直接 → だめならCORSプロキシ経由で取得
     async function fetchCdxRows(id) {
         const cdxUrl = "https://web.archive.org/cdx/search/cdx?" + new URLSearchParams({
             url: `nicovideo.cdn.nimg.jp/thumbnails/${id}/`,
@@ -344,6 +574,7 @@
             "https://api.allorigins.win/raw?url=" + encodeURIComponent(cdxUrl)
         ];
         if (WORKER_URL) routes.unshift(`${WORKER_URL.replace(/\/$/, "")}/?id=${id}`);
+
         const errors = [];
         for (const u of routes) {
             try {
@@ -373,43 +604,13 @@
     }
 
     // ---- 共通 ----
-    function checkImage(url, callback) {
-        const img = new Image();
-        img.onload = () => callback(true);
-        img.onerror = () => callback(false);
-        img.src = url;
-    }
-
-    function addFoundItem(link, imgSrc, type, q) {
-        document.getElementById('found-section').style.display = 'block';
-        const div = document.createElement('div');
-        div.className = 'result-item';
-        const tag = {
-            archive: ['tag-archive', 'Wayback Archive'],
-            direct:  ['tag-direct',  'Direct Live'],
-            new:     ['tag-new',     'Wayback Archive (New)']
-        }[type];
-        div.innerHTML = `
-            <span class="tag ${tag[0]}">${tag[1]}</span>${q ? `<span class="tag tag-archive">${q}</span>` : ''}
-            <a href="${link}" target="_blank">${link}</a>
-            <img src="${imgSrc}" alt="thumbnail">
-        `;
-        document.getElementById('found-results').appendChild(div);
-    }
-
-    function addNotFoundLink(link) {
-        const a = document.createElement('a');
-        a.href = link;
-        a.target = "_blank";
-        a.textContent = "→ " + link;
-        document.getElementById('not-found-results').appendChild(a);
-    }
-
-    function addWarning(text) {
-        const p = document.createElement('div');
-        p.className = 'warn';
-        p.textContent = text;
-        document.getElementById('not-found-results').appendChild(p);
+    function checkImage(url) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve(true);
+            img.onerror = () => resolve(false);
+            img.src = url;
+        });
     }
 
     document.getElementById('videoId').addEventListener('keydown', e => {
