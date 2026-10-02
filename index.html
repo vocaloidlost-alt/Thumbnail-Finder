@@ -105,14 +105,8 @@
         .vocadb-info .err { color: #b23b3b; }
 
         /* 動画ごとのグループ */
-        .group {
-            background: #fafafa;
-            border: 2px solid var(--primary-blue);
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 24px;
-            box-sizing: border-box;
-        }
+        .group { margin-bottom: 28px; }
+        .group + .group { border-top: 1px solid var(--border-color); padding-top: 20px; }
         .group-head {
             font-weight: bold;
             font-size: 1rem;
@@ -129,13 +123,13 @@
             font-size: 0.8rem;
         }
         .group-head a { color: #0066cc; text-decoration: none; }
-        .group-sub { font-size: 0.78rem; color: var(--text-sub); margin: 4px 0 6px; word-break: break-all; }
+        .group-sub { font-size: 0.78rem; color: var(--text-sub); margin: 4px 0 0; word-break: break-all; }
 
         .section-title {
-            font-size: 0.95rem;
+            font-size: 1rem;
             font-weight: bold;
             color: var(--text-main);
-            margin: 14px 0 8px;
+            margin: 20px 0 10px;
         }
 
         .result-item {
@@ -165,23 +159,23 @@
 
         .none-note { font-size: 0.8rem; color: var(--text-sub); }
 
-        details.nf {
+        details.nf { margin-top: 20px; }
+        details.nf summary {
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--text-main);
+            margin-bottom: 10px;
+        }
+        details.nf .nf-body {
             background-color: #ffffff;
-            border: 1px solid var(--border-color);
+            padding: 15px;
             border-radius: 4px;
-            margin-top: 12px;
+            border: 1px solid var(--border-color);
             font-size: 0.75rem;
             box-sizing: border-box;
             overflow: hidden;
         }
-        details.nf summary {
-            padding: 10px 12px;
-            cursor: pointer;
-            color: var(--text-main);
-            font-weight: bold;
-            font-size: 0.85rem;
-        }
-        details.nf .nf-body { padding: 0 12px 4px; }
         details.nf a {
             color: var(--text-sub);
             display: block;
@@ -500,7 +494,7 @@
             const wbUrl = `https://web.archive.org/web/${rawUrl}`;
             const wbImgUrl = `https://web.archive.org/web/0im_/${rawUrl}`;
 
-            const ok = await checkImage(wbImgUrl);
+            const ok = await checkImage(wbImgUrl, true);
             if (ok) g.addFound(wbUrl, wbImgUrl, "archive", "");
             else g.addNotFound(wbUrl);
 
@@ -537,8 +531,11 @@
             `https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}`,
             `https://nicovideo.cdn.nimg.jp/thumbnails/${id}/${id}.L`
         ]);
+        // 前方一致で他の動画(IDが前方一致する別動画)が混ざるので、完全に同じIDだけ残す
+        const own = new RegExp(`^https?://nicovideo\\.cdn\\.nimg\\.jp/thumbnails/${id}/${id}(\\.|$)`);
         const latest = new Map();
         for (const r of rows) {
+            if (!own.test(r.original)) continue;
             if (known.has(r.original)) continue;
             const cur = latest.get(r.original);
             if (!cur || r.timestamp > cur.timestamp) latest.set(r.original, r);
@@ -554,7 +551,7 @@
         await Promise.all(list.map(async r => {
             const wbUrl = `https://web.archive.org/web/${r.timestamp}/${r.original}`;
             const wbImg = `https://web.archive.org/web/${r.timestamp}im_/${r.original}`;
-            if (await checkImage(wbImg)) g.addFound(wbUrl, wbImg, "new", qName[quality(r.original)]);
+            if (await checkImage(wbImg, true)) g.addFound(wbUrl, wbImg, "new", qName[quality(r.original)]);
             else g.addNotFound(wbUrl);
         }));
     }
@@ -604,13 +601,46 @@
     }
 
     // ---- 共通 ----
-    function checkImage(url) {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    // 同時に読み込む画像数を制限(Waybackのレート制限による取りこぼし対策)
+    const MAX_PARALLEL = 6;
+    let running = 0;
+    const waiting = [];
+    function acquire() {
+        return new Promise(res => {
+            const go = () => { running++; res(); };
+            if (running < MAX_PARALLEL) go(); else waiting.push(go);
+        });
+    }
+    function release() {
+        running--;
+        const next = waiting.shift();
+        if (next) next();
+    }
+
+    function loadOnce(url) {
         return new Promise(resolve => {
             const img = new Image();
-            img.onload = () => resolve(true);
-            img.onerror = () => resolve(false);
+            const timer = setTimeout(() => { img.src = ""; resolve(false); }, 20000);
+            img.onload = () => { clearTimeout(timer); resolve(true); };
+            img.onerror = () => { clearTimeout(timer); resolve(false); };
             img.src = url;
         });
+    }
+
+    async function checkImage(url, retry = false) {
+        await acquire();
+        try {
+            let ok = await loadOnce(url);
+            if (!ok && retry) {
+                await sleep(500);
+                ok = await loadOnce(url);
+            }
+            return ok;
+        } finally {
+            release();
+        }
     }
 
     document.getElementById('videoId').addEventListener('keydown', e => {
