@@ -90,6 +90,19 @@
 
         #loading { text-align: center; color: var(--text-sub); font-size: 0.9rem; margin: 10px 0; display: none; }
 
+        /* 進捗 */
+        #progress { margin-bottom: 16px; }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 6px;
+        }
+        .progress-track { height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; }
+        .progress-bar { height: 100%; width: 0; background: var(--primary-blue); transition: width .2s; }
+        #progress.done .progress-text span:first-child { color: var(--text-main); font-weight: bold; }
+
         /* VocaDB情報 */
         .vocadb-info {
             background: #ffffff;
@@ -105,8 +118,15 @@
         .vocadb-info .err { color: #b23b3b; }
 
         /* 動画ごとのグループ */
-        .group { margin-bottom: 28px; }
-        .group + .group { border-top: 1px solid var(--border-color); padding-top: 20px; }
+        .group {
+            background: #ffffff;
+            border: 2px solid var(--primary-blue);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        .group .section-title:first-of-type { margin-top: 14px; }
         .group-head {
             font-weight: bold;
             font-size: 1rem;
@@ -205,7 +225,7 @@
 </head>
 <body>
 
-<header>Niconico Thumbnail Finder (V3)</header>
+<header>Niconico Thumbnail Finder</header>
 
 <div class="container">
     <div class="search-area">
@@ -216,6 +236,10 @@
     <div class="divider"></div>
 
     <div id="loading">Searching...</div>
+    <div id="progress" style="display:none;">
+        <div class="progress-text"><span id="progress-main"></span><span id="progress-sub"></span></div>
+        <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+    </div>
     <div id="vocadb-info" style="display:none;"></div>
     <div id="results"></div>
 </div>
@@ -243,9 +267,12 @@
     ];
 
     // ---- 入力の解釈 ----
-    function extractVocadbId(input) {
-        const m = input.match(/vocadb\.net\/(?:S|Song|Songs\/Details)\/(\d+)/i);
-        return m ? m[1] : null;
+    function extractVocadb(input) {
+        let m = input.match(/vocadb\.net\/(?:S|Song|Songs\/Details)\/(\d+)/i);
+        if (m) return { type: "song", id: m[1] };
+        m = input.match(/vocadb\.net\/(?:Al|Album|Albums\/Details)\/(\d+)/i);
+        if (m) return { type: "album", id: m[1] };
+        return null;
     }
 
     function extractId(input) {
@@ -266,31 +293,120 @@
     const qName = { 3: "L", 2: "M", 1: "S" };
 
     // ---- VocaDB ----
-    // ニコニコ動画の「オリジナル」PVだけを返す(YouTube等・転載(Reprint)・Otherは除外)
-    async function fetchVocadbNicoPVs(songId) {
-        const res = await fetch(`https://vocadb.net/api/songs/${songId}?fields=PVs&lang=Default`);
+    async function vocadbJson(path) {
+        const res = await fetch(`https://vocadb.net/api${path}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const song = await res.json();
-        const pvs = song.pvs || [];
+        return res.json();
+    }
 
-        const seen = new Set();
-        const originals = [];
+    // 1曲のPVから、ニコニコ動画の「オリジナル」だけを取り出す
+    // (YouTube等の他サービス・転載(Reprint)・Otherは除外)
+    function nicoOriginals(song) {
+        const out = [];
         let excluded = 0;
-        for (const pv of pvs) {
+        for (const pv of song.pvs || []) {
             if (pv.service !== "NicoNicoDouga") continue;
             if (pv.pvType !== "Original") { excluded++; continue; }
             const m = String(pv.pvId || "").match(/\d+/);
-            if (!m || seen.has(m[0])) continue;
-            seen.add(m[0]);
-            originals.push({
+            if (!m) continue;
+            out.push({
                 id: m[0],
                 code: pv.pvId,
                 name: pv.name || "",
                 author: pv.author || "",
-                disabled: !!pv.disabled
+                disabled: !!pv.disabled,
+                track: ""
             });
         }
-        return { songName: song.name || `#${songId}`, originals, excluded };
+        return { out, excluded };
+    }
+
+    async function loadVocadbSong(songId) {
+        const song = await vocadbJson(`/songs/${songId}?fields=PVs&lang=Default`);
+        const { out, excluded } = nicoOriginals(song);
+        return {
+            title: song.name || `#${songId}`,
+            url: `https://vocadb.net/S/${songId}`,
+            targets: out,
+            summary: `Original: ${out.length}` + (excluded ? ` / Excluded: ${excluded}` : "")
+        };
+    }
+
+    async function loadVocadbAlbum(albumId) {
+        const album = await vocadbJson(`/albums/${albumId}?fields=Tracks&lang=Default`);
+        const tracks = (album.tracks || [])
+            .filter(t => t.song && t.song.id)
+            .sort((a, b) => (a.discNumber || 1) - (b.discNumber || 1) || (a.trackNumber || 0) - (b.trackNumber || 0));
+        const multiDisc = tracks.some(t => (t.discNumber || 1) > 1);
+
+        // 各曲のPVを取得(同時5件まで)
+        const songs = new Array(tracks.length).fill(null);
+        let next = 0, failed = 0;
+        const worker = async () => {
+            while (next < tracks.length) {
+                const i = next++;
+                const song = tracks[i].song;
+                try {
+                    songs[i] = Array.isArray(song.pvs)
+                        ? song
+                        : await vocadbJson(`/songs/${song.id}?fields=PVs&lang=Default`);
+                } catch (e) {
+                    failed++;
+                }
+            }
+        };
+        await Promise.all(Array.from({ length: 5 }, worker));
+
+        const seen = new Set();
+        const targets = [];
+        let excluded = 0;
+        tracks.forEach((t, i) => {
+            if (!songs[i]) return;
+            const { out, excluded: ex } = nicoOriginals(songs[i]);
+            excluded += ex;
+            const label = `${multiDisc ? (t.discNumber || 1) + "-" : ""}${t.trackNumber || i + 1}. ${songs[i].name || t.song.name || ""}`;
+            for (const v of out) {
+                if (seen.has(v.id)) continue;
+                seen.add(v.id);
+                v.track = label;
+                targets.push(v);
+            }
+        });
+
+        return {
+            title: album.name || `#${albumId}`,
+            url: `https://vocadb.net/Al/${albumId}`,
+            targets,
+            summary: `Tracks: ${tracks.length} / Original: ${targets.length}` +
+                (excluded ? ` / Excluded: ${excluded}` : "") +
+                (failed ? ` / Failed: ${failed}` : "")
+        };
+    }
+
+    // ---- 進捗 ----
+    const UNITS_PER_VIDEO = patterns.length + 1; // 従来パターン + 新パターン検索
+    const progress = { done: 0, total: 0, vDone: 0, vTotal: 0 };
+
+    function renderProgress(finished = false) {
+        const pct = progress.total ? Math.round(progress.done / progress.total * 100) : 0;
+        document.getElementById('progress-bar').style.width = pct + '%';
+        document.getElementById('progress-main').textContent =
+            `${finished ? 'Done' : 'Searching'} · ${progress.done} / ${progress.total}`;
+        document.getElementById('progress-sub').textContent =
+            progress.vTotal > 1 ? `Videos ${progress.vDone} / ${progress.vTotal}` : '';
+        document.getElementById('progress').classList.toggle('done', finished);
+    }
+
+    // 同時に動かすジョブ数を制限して順番に実行
+    async function runLimited(jobs, limit) {
+        let i = 0;
+        const worker = async () => {
+            while (i < jobs.length) {
+                const job = jobs[i++];
+                await job();
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, worker));
     }
 
     // ---- メイン ----
@@ -301,70 +417,81 @@
         const info = document.getElementById('vocadb-info');
         const results = document.getElementById('results');
 
-        const vocadbId = extractVocadbId(input);
-        const directId = vocadbId ? null : extractId(input);
-        if (!vocadbId && !directId) return alert("ID番号が見つかりませんでした");
+        const vocadb = extractVocadb(input);
+        const directId = vocadb ? null : extractId(input);
+        if (!vocadb && !directId) return alert("ID番号が見つかりませんでした");
 
         results.innerHTML = '';
         info.innerHTML = '';
         info.style.display = 'none';
         loading.style.display = 'block';
+        document.getElementById('progress').style.display = 'none';
+        progress.done = progress.total = progress.vDone = progress.vTotal = 0;
         btn.disabled = true;
+
+        const finishAll = () => {
+            loading.style.display = 'none';
+            loading.textContent = "Searching...";
+            if (progress.total) renderProgress(true);
+            btn.disabled = false;
+        };
 
         let targets = [];
 
-        if (vocadbId) {
+        if (vocadb) {
             loading.textContent = "Loading VocaDB...";
+            info.style.display = 'block';
             try {
-                const { songName, originals, excluded } = await fetchVocadbNicoPVs(vocadbId);
-                info.style.display = 'block';
+                const data = vocadb.type === "album"
+                    ? await loadVocadbAlbum(vocadb.id)
+                    : await loadVocadbSong(vocadb.id);
                 const a = document.createElement('a');
-                a.href = `https://vocadb.net/S/${vocadbId}`;
+                a.href = data.url;
                 a.target = "_blank";
-                a.textContent = songName;
+                a.textContent = data.title;
                 const title = document.createElement('div');
                 title.append("VocaDB: ", a);
                 const sub = document.createElement('div');
                 sub.className = 'sub';
-                sub.textContent = `Original: ${originals.length}` + (excluded ? ` / Excluded: ${excluded}` : '');
+                sub.textContent = data.summary;
                 info.append(title, sub);
-                targets = originals;
+                targets = data.targets;
             } catch (e) {
-                info.style.display = 'block';
                 const d = document.createElement('div');
                 d.className = 'err';
                 d.textContent = `VocaDB error (${e.message})`;
                 info.append(d);
+                finishAll();
+                return;
             }
             if (targets.length === 0) {
-                if (info.style.display === 'block' && !info.querySelector('.err')) {
-                    const d = document.createElement('div');
-                    d.className = 'err';
-                    d.textContent = "No Niconico original PV found.";
-                    info.append(d);
-                }
-                loading.style.display = 'none';
-                loading.textContent = "Searching...";
-                btn.disabled = false;
+                const d = document.createElement('div');
+                d.className = 'err';
+                d.textContent = "No Niconico original PV found.";
+                info.append(d);
+                finishAll();
                 return;
             }
         } else {
-            targets = [{ id: directId, code: `ID ${directId}`, name: "", author: "", disabled: false }];
+            targets = [{ id: directId, code: `ID ${directId}`, name: "", author: "", disabled: false, track: "" }];
         }
 
-        loading.textContent = "Searching...";
+        loading.style.display = 'none';
+        progress.total = targets.length * UNITS_PER_VIDEO;
+        progress.vTotal = targets.length;
+        document.getElementById('progress').style.display = 'block';
+        renderProgress();
 
-        // 動画ごとにグループを作って並列に検索(結果は混ざらない)
+        // 動画ごとにグループを作って検索(結果は混ざらない)。同時に動かすのは3本まで
         const total = targets.length;
         const jobs = targets.map((t, i) => {
-            const g = createGroup(t, i + 1, total, !!vocadbId);
+            const g = createGroup(t, i + 1, total, !!vocadb);
             results.appendChild(g.el);
-            return searchOne(t.id, g);
+            return () => searchOne(t.id, g);
         });
-        await Promise.all(jobs);
+        await runLimited(jobs, 3);
 
-        loading.style.display = 'none';
-        btn.disabled = false;
+        finishAll();
     }
 
     // ---- 動画ごとのグループUI ----
@@ -379,6 +506,11 @@
             num.className = 'num';
             num.textContent = `${index} / ${total}`;
             head.appendChild(num);
+        }
+        if (target.track) {
+            const tr = document.createElement('div');
+            tr.textContent = target.track;
+            head.appendChild(tr);
         }
         const link = document.createElement('a');
         link.href = `https://www.nicovideo.jp/watch/sm${target.id}`;
@@ -453,7 +585,12 @@
                 img.src = imgSrc;
                 img.alt = "thumbnail";
                 div.append(a, img);
-                foundBox.appendChild(div);
+                // 高画質(.L → .M → 無印)の順に並べる。同じ画質なら見つかった順
+                const rank = quality(link);
+                div.dataset.rank = rank;
+                const after = [...foundBox.children].find(c => Number(c.dataset.rank) < rank);
+                if (after) foundBox.insertBefore(div, after);
+                else foundBox.appendChild(div);
                 updateCounts();
             },
             addNotFound(link) {
@@ -504,8 +641,11 @@
         });
         tasks.push(searchNewPattern(id, g));
 
-        await Promise.all(tasks);
+        const tick = () => { progress.done++; renderProgress(); };
+        await Promise.all(tasks.map(t => t.then(tick, tick)));
         g.finish();
+        progress.vDone++;
+        renderProgress();
     }
 
     function logUsage(id) {
