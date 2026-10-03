@@ -177,6 +177,15 @@
             display: block;
         }
 
+        /* 見つかった画像: スマホは縦1列、PCは3列 */
+        .found-grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
+        .found-grid > * { min-width: 0; margin-bottom: 0; }
+
+        @media (min-width: 900px) {
+            .container { max-width: 1100px; }
+            .found-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
         .none-note { font-size: 0.8rem; color: var(--text-sub); }
 
         details.nf { margin-top: 20px; }
@@ -225,7 +234,7 @@
 </head>
 <body>
 
-<header>Niconico Thumbnail Finder</header>
+<header>Niconico Thumbnail Finder (V3)</header>
 
 <div class="container">
     <div class="search-area">
@@ -537,6 +546,7 @@
         foundTitle.className = 'section-title';
         foundTitle.textContent = 'Images Found';
         const foundBox = document.createElement('div');
+        foundBox.className = 'found-grid';
         el.append(foundTitle, foundBox);
 
         const nf = document.createElement('details');
